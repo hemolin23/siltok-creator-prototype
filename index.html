@@ -139,4 +139,82 @@ openAssistant=function(){
 document.addEventListener('click',e=>{if(e.target.closest('[data-v2-spec]'))setTimeout(()=>{enhanceTaskInputs();enhanceVideoService();enhanceVideoTiming();syncTaskSummary()},0)});document.addEventListener('input',e=>{if(e.target.id==='durationSlider'||e.target.id==='durationNumber')setTimeout(()=>{enhanceTaskInputs();enhanceVideoService();enhanceVideoTiming();syncTaskSummary()},0)});
 document.addEventListener('click',e=>{if(!e.target.closest('#submit')||s.type!=='video')return;let count=parseInt(videoSpec.count),button=$('#submit');button.textContent=count>1?`已加入队列 · ${count} 条`:'已开始生成';button.classList.add('submitted');$$('.thumb').forEach((x,i)=>x.classList.toggle('processing',i<count));let note=$('.batch-note');if(note)note.textContent=`任务已提交。${count>1?'首条完成后会立即出现在作品区，其余任务继续排队。':'完成后会自动出现在作品区。'}`;});
 $$('.rail-item[data-type]').forEach(x=>x.onclick=()=>{s={type:x.dataset.type,model:0,feature:0,mode:0};render()});$('#modelSelect .select-btn').onclick=e=>{e.stopPropagation();$('#modelSelect').classList.toggle('open')};$$('.info').forEach(x=>x.onclick=()=>showHelp(x.dataset.help));$('#noteSwitch').onclick=()=>{$('#noteSwitch').classList.toggle('on');$('#layout').classList.toggle('show-notes')};$('.close').onclick=()=>$('#help').classList.remove('open');document.onclick=e=>{if(!e.target.closest('.select'))$('#modelSelect').classList.remove('open')};render();
+</script>
+<style>
+.evidence-strip{margin:10px 0 2px;padding:9px 10px;border:1px solid #d8e5f6;border-radius:9px;background:#f7faff;color:#536885;font-size:9px;line-height:1.55}.evidence-strip b{color:#1c4f9d}.route-tag{display:inline-block;padding:2px 5px;border-radius:4px;background:#e8f2ff;color:#1766e8;font-size:7px;margin-left:4px}.route-tag.compat{background:#f0f2f6;color:#6e7889}.func-status{display:inline-block;margin-left:4px;padding:2px 4px;border-radius:4px;font-size:7px;background:#e4f7ee;color:#17865d}.func-status.advanced{background:#fff3d8;color:#9a6818}.mode.disabled{opacity:.45;pointer-events:none}.mode .mode-time{display:block;margin-top:5px;color:#1766e8;font-size:9px;font-weight:750}.mode.on .mode-time{color:#1766e8}.data-note{font-size:8px;color:#748199;margin-top:6px;line-height:1.45}.service-card .engine-note{display:block;color:#77859a;font-size:8px;margin-top:5px}.duration-preset{display:flex;gap:6px;margin-bottom:8px}.duration-preset button{border:1px solid #d7e0ec;background:#fff;color:#5f6f87;border-radius:7px;padding:5px 9px;font-size:9px;cursor:pointer}.duration-preset button.on{border-color:#6d9cff;background:#edf4ff;color:#1766e8}.ability-warning{font-size:8px;color:#9a6818;background:#fff7e4;border-radius:6px;padding:6px 8px;margin-top:6px}.ability-warning.danger{color:#bd3d3d;background:#ffecec}.creator{padding-bottom:34px}
+</style>
+<script>
+// 2026-09-21 product rules: five-table Speed/ComfyUI distribution + latest 4/6/8-step LoRA tests.
+DATA.video.models[0].features=[
+  F('文生视频','FL2VA · text_to_video','已完成 Speed / ComfyUI 速度测试，最长支持 15 秒'),
+  F('图片生成视频','FL2VA · image_to_video_first_frame','上传首帧生成视频；新成片测试已覆盖 5、10、15 秒'),
+  F('首尾帧生成','FL2VA · image_to_video_first_last_frame','用首帧和尾帧控制过渡；首版开放 5、10 秒'),
+  F('参考素材生成','REF2VA · reference_to_video','合并多图、视频和混合参考；高速生成优先，最长 10 秒')
+];
+videoSpec.duration='5 秒'; videoSpec.resolution='768p 高清'; videoSpec.count='1条'; s.mode=0;
+
+const LATEST_TIME={
+  standard:{
+    '768p':{
+      0:{5:[3.1,7.1],10:[6.4,11.5],15:[11.4,13.8]},
+      1:{5:[5.2,8.5],10:[10.1,17.1],15:[15.6,18.0]},
+      2:{5:[5.3,9.1],10:[12.0,20.3],15:[21.1,22.6]}
+    },
+    '480p':{0:{5:[1.2,3.6],10:[2.5,5.4],15:[3.7,11.3]}}
+  },
+  fast:{
+    '768p':{
+      0:{5:[2.5,2.6],10:[4.3,4.4],15:[7.0,7.1]},
+      1:{5:[2.5,2.6],10:[4.3,4.4],15:[7.0,7.1]},
+      2:{5:[2.9,3.0],10:[5.3,5.5],15:[8.8,9.1]}
+    },
+    '480p':{0:{5:[1.1,1.2],10:[2.2,2.6],15:[3.8,4.5]}}
+  }
+};
+function latestAnchored(points,duration){let keys=Object.keys(points).map(Number).sort((a,b)=>a-b),low=keys.filter(x=>x<=duration).pop()??keys[0],high=keys.find(x=>x>=duration)??keys.at(-1);if(low===high)return points[low];let r=(duration-low)/(high-low);return points[low].map((v,i)=>v+(points[high][i]-v)*r)}
+estimateVideoRange=function(service,countOverride,resolutionOverride,durationOverride){let duration=durationOverride??parseInt(videoSpec.duration),count=countOverride??parseInt(videoSpec.count),resolution=resolutionOverride||(videoSpec.resolution.startsWith('480')?'480p':'768p'),mode=resolution==='480p'?0:Math.min(2,s.mode),points=LATEST_TIME[service][resolution][mode]||LATEST_TIME[service][resolution][0],pair=latestAnchored(points,duration),round=v=>Math.max(.5,Math.round(v*10)/10);return pair.map(v=>round(v*count))};
+timingSourceLabel=function(){return [5,10,15].includes(parseInt(videoSpec.duration))?'最新成片实测区间':'相邻实测档插值'};
+
+const latestControls=enhanceVideoControlsV2;
+enhanceVideoControlsV2=function(){
+  if(s.type!=='video')return;
+  let m=DATA.video.models[s.model],feature=m.features[s.feature],id=feature.id,max=(id.includes('text_to_video')||id.includes('image_to_video_first_frame'))?15:10,ratioList=[['Auto','r11'],['21:9','r21'],['16:9',''],['4:3','r43'],['1:1','r11'],['3:4','r34'],['9:16','r916']];
+  if(parseInt(videoSpec.duration)>max)videoSpec.duration=max+' 秒';
+  if(videoSpec.resolution.startsWith('480')&&s.mode!==0)s.mode=0;
+  let option=(key,value,label=value)=>`<span class="spec-option ${videoSpec[key]===value?'on':''}" data-v2-spec="${key}" data-value="${value}">${label}</span>`,duration=parseInt(videoSpec.duration);
+  $('#params').className='image-spec';
+  $('#params').innerHTML=`<div class="spec-row"><div class="spec-name">清晰度</div><div class="spec-options">${option('resolution','480p 预览','480p · 快速预览')}${option('resolution','768p 高清','768p · 推荐')}</div></div><div class="spec-row"><div class="spec-name">画面比例</div><div class="spec-options">${ratioList.map(([v,c])=>`<span class="spec-option ratio-option ${videoSpec.ratio===v?'on':''}" data-v2-spec="ratio" data-value="${v}"><i class="ratio-icon ${c}"></i>${v}</span>`).join('')}</div></div><div class="spec-row"><div class="spec-name">视频时长</div><div><div class="duration-preset">${[5,10,15].filter(v=>v<=max).map(v=>`<button class="${duration===v?'on':''}" data-duration-preset="${v}">${v}秒${v===5?' · 推荐':''}</button>`).join('')}</div><div class="duration-control"><input id="durationSlider" type="range" min="4" max="${max}" step="1" value="${duration}"><div class="duration-number"><input id="durationNumber" type="number" min="4" max="${max}" value="${duration}"><span>秒</span></div></div><div class="range-note">${max===15?'5秒适合试稿，10秒适合完整动作，15秒适合连续镜头。':'当前生成方式只开放 5–10 秒，15秒尚未完成稳定性验证。'}</div></div></div><div class="spec-row"><div class="spec-name">声音</div><div><div class="spec-options">${option('sound','无声音','不生成 · 更快')}${option('sound','有声音','生成音频 · 实验')}</div><div class="sound-note ${videoSpec.sound==='有声音'?'on':''}">${videoSpec.sound==='有声音'?'当前成片均带音轨，但尚无开关耗时对照；适合短剧和环境声。':'广告与后期配乐建议关闭，减少不必要的声音生成。'}</div></div></div><div class="spec-row"><div class="spec-name">生成数量</div><div><div class="spec-options">${option('count','1条')}${option('count','2条')}${option('count','4条')}</div><div class="range-note">批量完成时间暂按单条顺序推算，不承诺并行加速。</div></div></div><div class="spec-summary lib-summary">${videoSpec.ratio} · ${videoSpec.resolution.replace(' 高清','').replace(' 预览','')} · ${duration}s · ${videoSpec.count}</div><div class="video-warning">768p 是当前质量与时间的平衡点；1080p 未完成稳定验证，不进入普通生成入口。</div>`;
+  $('#paramAnnot').textContent='数据依据：5070 Ti / 5090，Speed / ComfyUI，4-step / 6-step / 8-step LoRA；预计时间使用最新成功样本区间。';
+  $$('[data-v2-spec]').forEach(x=>x.onclick=()=>{videoSpec[x.dataset.v2Spec]=x.dataset.value;enhanceVideoControlsV2();enhanceTaskInputs();enhanceVideoService();enhanceVideoTiming()});
+  let setDuration=v=>{v=Math.max(4,Math.min(max,+v||4));videoSpec.duration=v+' 秒';enhanceVideoControlsV2();enhanceTaskInputs();enhanceVideoService();enhanceVideoTiming()};
+  $('#durationSlider').oninput=e=>setDuration(e.target.value);$('#durationNumber').onchange=e=>setDuration(e.target.value);$$('[data-duration-preset]').forEach(x=>x.onclick=()=>setDuration(x.dataset.durationPreset));
+  let frame=$('.video-frame');if(frame&&videoSpec.ratio!=='Auto')frame.style.aspectRatio=videoSpec.ratio.replace(':','/');
+};
+
+enhanceTaskInputs=function(){
+  let old=$('#referenceUpload');if(old)old.remove();if(s.type!=='video')return;let feature=DATA.video.models[s.model].features[s.feature],id=feature.id,max=(id.includes('text_to_video')||id.includes('image_to_video_first_frame'))?15:10;if(parseInt(videoSpec.duration)>max)videoSpec.duration=max+' 秒';
+  if(id.includes('text_to_video'))return;
+  let title='',cards='';if(id.includes('first_last_frame')){title='添加首尾帧';cards=`<label class="upload-card"><input type="file" accept="image/*" hidden><b>+</b>添加首帧<small>视频开始画面</small></label><label class="upload-card"><input type="file" accept="image/*" hidden><b>+</b>添加尾帧<small>视频结束画面</small></label>`}else if(id.includes('reference_to_video')){title='添加参考素材';cards=`<label class="upload-card"><input type="file" accept="image/*" multiple hidden><b>+</b>参考图片<small>人物、场景或风格</small></label><label class="upload-card"><input type="file" accept="video/*,audio/*" multiple hidden><b>+</b>视频 / 音频<small>动作、运镜或声音</small></label>`}else{title='添加起始图片';cards=`<label class="upload-card"><input type="file" accept="image/*" hidden><b>+</b>上传一张图片<small>作为视频起始画面</small></label>`}
+  $('#input').closest('.field').insertAdjacentHTML('beforebegin',`<div class="upload-zone" id="referenceUpload"><div class="upload-title">${title}</div><div class="upload-grid ${id.includes('image_to_video')?'single':''}">${cards}</div><div class="upload-note">只显示当前方式需要的素材。参考素材生成在高速服务下更稳定。</div></div>`);
+};
+
+enhanceVideoService=function(){
+  let old=$('#serviceField');if(old)old.remove();if(s.type!=='video')return;let duration=parseInt(videoSpec.duration),count=parseInt(videoSpec.count),feature=DATA.video.models[s.model].features[s.feature],complex=feature.id.includes('reference_to_video'),[sfmin,sfmax]=estimateVideoRange('standard',1),[smin,smax]=estimateVideoRange('standard',count),[ffmin,ffmax]=estimateVideoRange('fast',1),[fmin,fmax]=estimateVideoRange('fast',count),[slabel,scls]=waitAccount(smax),[flabel,fcls]=waitAccount(fmax),recommendFast=complex||duration>=15||smax>15;
+  $('#modeField').insertAdjacentHTML('beforebegin',`<div class="service-field" id="serviceField"><div class="label">生成服务 <span class="info" id="serviceInfo">数据说明</span></div><div class="service-grid"><div class="service-card ${videoService==='standard'?'on':''}" data-service="standard"><b>标准生成</b><span class="route-tag">5070 Ti</span><p>适合5秒试稿和日常生成</p><span class="service-time">首条 ${minuteText(sfmin)}–${minuteText(sfmax)} 分钟</span><span class="engine-note">Speed 主路由 · ComfyUI 兼容</span><span class="wait-badge ${scls}">${slabel}</span></div><div class="service-card ${videoService==='fast'?'on':''}" data-service="fast">${recommendFast?'<span class="service-rec">当前任务推荐</span>':''}<b>高速生成</b><span class="route-tag">5090</span><p>适合10–15秒和参考素材</p><span class="service-time">首条 ${minuteText(ffmin)}–${minuteText(ffmax)} 分钟</span><span class="engine-note">Speed 主路由 · ComfyUI 兼容</span><span class="wait-badge ${fcls}">${flabel}</span></div></div><div class="service-advice">${recommendFast&&videoService==='standard'?'当前是长时长或复杂参考任务，高速生成等待更短、长尾更可控。':'Speed 与 ComfyUI 中位差异较小，产品默认走 Speed；失败或兼容任务再回退 ComfyUI。'}</div></div>`);
+  $$('[data-service]').forEach(x=>x.onclick=()=>{videoService=x.dataset.service;s.mode=videoService==='fast'?1:0;enhanceVideoService();enhanceVideoTiming()});$('#serviceInfo').onclick=()=>showHelp('service');
+  let resolution=videoSpec.resolution.startsWith('480')?'480p':'768p',modeNames=videoService==='fast'?[[1,'均衡推荐','5090 · 6-step LoRA','当前最快已验证档'],[2,'细节优先','5090 · 8-step LoRA','增加细节与等待']]:[[0,'快速成片','5070 Ti · 4-step LoRA','最快生成'],[1,'均衡推荐','5070 Ti · 6-step LoRA','质量与速度平衡'],[2,'细节优先','5070 Ti · 8-step LoRA','等待明显增加']];
+  $('#modes').innerHTML=modeNames.map(m=>{let i=m[0],pair=estimateModePair(videoService,i),disabled=resolution==='480p'&&i>0;return `<div class="mode ${s.mode===i?'on':''} ${disabled?'disabled':''}" data-new-mode="${i}"><b>${m[1]}${i===(videoService==='fast'?1:0)?' <span class="badge">推荐</span>':''}</b><p>${m[2]}<br>${m[3]}</p><span class="mode-time">约 ${minuteText(pair[0])}–${minuteText(pair[1])} 分钟</span></div>`}).join('');
+  $$('[data-new-mode]').forEach(x=>x.onclick=()=>{s.mode=+x.dataset.newMode;enhanceVideoService();enhanceVideoTiming()});let annot=$('#modeField .annot');if(annot)annot.textContent='满血20-step已从普通用户界面移除：耗时约为LoRA档的2–3倍，当前成片对比未显示稳定的质量优势。';
+};
+function estimateModePair(service,mode){let old=s.mode;s.mode=mode;let pair=estimateVideoRange(service,1);s.mode=old;return pair}
+
+enhanceVideoTiming=function(){
+  if(s.type!=='video')return;let count=parseInt(videoSpec.count),[firstMin,firstMax]=estimateVideoRange(videoService,1),[allMin,allMax]=estimateVideoRange(videoService,count),[status,cls,message]=waitAccount(count>1?allMax:firstMax),serviceName=videoService==='fast'?'高速生成 · 5090':'标准生成 · 5070 Ti',modeName=['快速成片','均衡推荐','细节优先'][s.mode]||'快速成片';
+  $('#submit').textContent=count>1?`生成 ${count} 条视频`:'立即生成';$('#eta').innerHTML=`<div class="eta-plan"><div class="eta-card"><span>首条完成 · ${timingSourceLabel()}</span><b>${minuteText(firstMin)}–${minuteText(firstMax)} 分钟</b></div><div class="eta-card"><span>${count>1?'全部完成 · 顺序排队推算':'当前任务体验'}</span><b>${minuteText(allMin)}–${minuteText(allMax)} 分钟</b></div></div><span class="wait-badge ${cls}">${status}</span><span class="eta-message ${cls}">${message}</span><span class="eta-basis">${serviceName} · ${videoSpec.resolution.split(' ')[0]} · ${parseInt(videoSpec.duration)}s · ${modeName}</span><span class="data-note">LoRA时间来自最新成片实测；480p来自Speed P50–P90。ComfyUI用于兼容性回退，不作为额外用户选项。</span>`;
+};
+
+const productRender=render;
+render=function(){productRender();if(s.type!=='video')return;let subtitle=$('#subtitle');if(subtitle)subtitle.textContent='当前正式能力：MiniMax H3 · 768p · 5/10/15秒';let old=$('#latestEvidence');if(old)old.remove();subtitle.insertAdjacentHTML('afterend','<div class="evidence-strip" id="latestEvidence"><b>最新策略</b>：Speed 默认、ComfyUI 回退；LoRA 4/6/8-step 按设备映射；满血模式与1080p隐藏。</div>');$$('#functions .func').forEach((x,i)=>{let b=x.querySelector('b');if(b)b.insertAdjacentHTML('beforeend',i<2?'<span class="func-status">正式开放</span>':'<span class="func-status advanced">进阶能力</span>')});};
+
+render();
 </script></body></html>
